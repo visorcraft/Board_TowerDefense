@@ -1,0 +1,22 @@
+{
+  "name": "tower-defense",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@board.fun/web-sdk": "^1.0.0-beta.3"
+  },
+  "devDependencies": {
+    "@board.fun/web-pack": "^1.0.0-beta.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}

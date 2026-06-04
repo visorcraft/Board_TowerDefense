@@ -1,0 +1,9 @@
+{
+  "name": "Tower Defense",
+  "packageId": "fun.visorcraft.towerdefense",
+  "appVersion": "0.1.0",
+  "pieceSet": "save-the-bloogs",
+  "modelPath": null,
+  "notes": "Run `npx web-pack dist --package-id fun.visorcraft.towerdefense --name \"Tower Defense\" --model <model.tflite>` to mint the appId (or use --no-model for finger-only) and write it back here. Commit board.config.json so the appId travels with the project.",
+  "appId": "ca5d19e8-876b-4b93-a4c9-74c09ea240a2"
+}

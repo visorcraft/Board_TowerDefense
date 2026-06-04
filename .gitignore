@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+build/
+*.webapp.zip
+
+# tooling
+.playwright-mcp/
+coverage/
+
+# env / secrets
+.env
+.env.*
+
+# local SDK reference
+BOARD_AGENTS.md
+
+# Piece Set model files (licensed; not vendored by tooling, obtained out of band)
+assets/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# editor / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

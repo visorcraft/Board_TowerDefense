@@ -1,0 +1,18 @@
+{
+  "description": "Save the Bloogs mapping captured from the real Board (). 4 piece types: ring, cannon, stair, block.",
+  "defaultLaneColors": [16744448, 16756398, 16752048],
+  "entries": [
+    { "glyphId": 2, "role": "cannon", "label": "Cannon", "defaultMode": "single" },
+    { "glyphId": 4, "role": "block", "label": "Block" },
+    { "glyphId": 3, "role": "stair", "label": "Stair" },
+    { "glyphId": 1, "role": "ring", "label": "Shapeshifter Ring" }
+  ],
+  "fingerPlacement": {
+    "placePiece": "lmb",
+    "rotatePiece": "q",
+    "cycleMode": "f"
+  },
+  "diagnostic": {
+    "howTo": "Press D or long-press anywhere to open the diagnostic. Place each piece on the Board one at a time and read the 'glyph' column. Compare to the entries above; if any ID is missing, add a new entry with that id and the appropriate role."
+  }
+}
