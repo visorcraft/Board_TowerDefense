@@ -302,6 +302,17 @@ export class AudioBus {
     }
     this.musicNodes = [];
   }
+
+  destroy(): void {
+    this.stopMusic();
+    if (this.ctx && this.ctx.state !== "closed") {
+      void this.ctx.close();
+    }
+    this.ctx = null;
+    this.master = null;
+    this.music = null;
+    this.sfx = null;
+  }
 }
 
 function clamp(v: number, lo: number, hi: number): number {

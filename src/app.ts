@@ -93,7 +93,7 @@ export class App {
     cancelAnimationFrame(this.rafId);
     this.input.stop();
     this.pause.uninstall();
-    this.audio.stopMusic();
+    this.audio.destroy();
   }
 
   private installPause(): void {
@@ -130,11 +130,13 @@ export class App {
         }
         this.stop();
         if (Board.isOnDevice) {
-          try {
-            Board.application.quit();
-          } catch (e) {
-            this.debugMsg = "quit threw: " + String(e);
-          }
+          setTimeout(() => {
+            try {
+              Board.application.quit();
+            } catch (e) {
+              this.debugMsg = "quit threw: " + String(e);
+            }
+          }, 100);
         }
       },
       onNextWave: () => {
