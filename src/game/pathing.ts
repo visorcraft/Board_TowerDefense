@@ -139,12 +139,22 @@ function simplify(pts: Vec2[]): Vec2[] {
 
 export function blockedSetFromPieces(
   pieces: Iterable<{ x: number; y: number; role: string }>,
+  blockSizeLevel: number = 0,
 ): Set<string> {
   const out = new Set<string>();
   for (const p of pieces) {
     if (p.role !== "block") continue;
     const t = tileOfPoint(p);
-    if (inBounds(t.col, t.row)) out.add(cellKey(t.col, t.row));
+    const radius = blockSizeLevel;
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        if (dr === 0 && dc === 0) {
+          if (inBounds(t.col, t.row)) out.add(cellKey(t.col, t.row));
+        } else if (inBounds(t.col + dc, t.row + dr)) {
+          out.add(cellKey(t.col + dc, t.row + dr));
+        }
+      }
+    }
   }
   return out;
 }

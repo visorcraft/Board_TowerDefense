@@ -5,6 +5,8 @@ export interface PauseHooks {
   onRestart(): void;
   onMuteToggle(): void;
   onDiagnosticToggle(): void;
+  onNextWave(): void;
+  onVisitShop(): void;
   onVolumeChange(music: number, sfx: number): void;
   onResume(): void;
   onQuit(): void;
@@ -35,6 +37,8 @@ export class PauseMenu {
           offerSaveOption: true,
           customButtons: [
             { id: "restart", title: "Restart Round", icon: "circulararrow" },
+            { id: "next_wave", title: "Next Wave", icon: "square" },
+            { id: "visit_shop", title: "Visit Shop", icon: "square" },
             { id: "diagnostic", title: "Diagnostic Screen", icon: "square" },
             { id: "mute", title: "Mute / Unmute", icon: "square" },
           ],
@@ -61,7 +65,7 @@ export class PauseMenu {
       }, 200);
       window.setTimeout(() => window.clearInterval(interval), 15000);
     }
-    this.reapplyTimer = window.setInterval(apply, 5000);
+    this.reapplyTimer = null;
     this.unsubscribe = Board.pause.onResult((result) => {
       this.lastEvent = `push/${result.action}${result.customButtonId ? "/" + result.customButtonId : ""}`;
       this.hooks?.onDebug("pause evt: " + this.lastEvent);
@@ -86,36 +90,29 @@ export class PauseMenu {
       this.lastEvent = `poll/${result.action}${result.customButtonId ? "/" + result.customButtonId : ""}`;
       this.hooks?.onDebug("pause evt: " + this.lastEvent);
       this.dispatch(result);
-    }, 500);
+    }, 150);
   }
 
   private dispatch(result: BoardPauseResult): void {
     if (!this.hooks) return;
     const raw = String(result.action ?? "");
-    const action = raw.toLowerCase().replace(/\s+/g, "_");
+    const action = raw.toLowerCase().replace(/\s+/g, "_").replace(/['']/g, "");
     const buttonId = result.customButtonId ? String(result.customButtonId).toLowerCase() : "";
+    this.hooks.onDebug("pause action: " + raw + " -> " + action);
     try {
-      switch (action) {
-        case "resume":
-          this.hooks.onResume();
-          break;
-        case "quit":
-          this.hooks.onQuit();
-          break;
-        case "save_and_quit":
-        case "save_and__quit":
-          this.hooks.onQuit();
-          break;
-        case "custom_action":
-        case "custom_button":
-        case "customaction":
-          if (buttonId === "restart") this.hooks.onRestart();
-          else if (buttonId === "diagnostic") this.hooks.onDiagnosticToggle();
-          else if (buttonId === "mute") this.hooks.onMuteToggle();
-          else this.hooks.onDebug("unknown customButtonId: " + String(result.customButtonId));
-          break;
-        default:
-          this.hooks.onDebug("unknown action: " + raw);
+      if (action === "resume") {
+        this.hooks.onResume();
+      } else if (action.includes("quit") || action.includes("exit") || action === "save" || action === "dont_save" || action === "no_save" || action === "discard") {
+        this.hooks.onQuit();
+      } else if (action === "custom_action" || action === "custom_button" || action === "customaction") {
+        if (buttonId === "restart") this.hooks.onRestart();
+        else if (buttonId === "diagnostic") this.hooks.onDiagnosticToggle();
+        else if (buttonId === "mute") this.hooks.onMuteToggle();
+        else if (buttonId === "next_wave") this.hooks.onNextWave();
+        else if (buttonId === "visit_shop") this.hooks.onVisitShop();
+        else this.hooks.onDebug("unknown customButtonId: " + String(result.customButtonId));
+      } else {
+        this.hooks.onDebug("unknown action: " + raw);
       }
     } catch (e) {
       this.hooks.onDebug("handler throw: " + String(e));

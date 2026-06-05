@@ -17,8 +17,13 @@ coverage/
 # local SDK reference
 BOARD_AGENTS.md
 
+# local agent guide (CLAUDE.md is a symlink to AGENTS.md)
+AGENTS.md
+CLAUDE.md
+
 # Piece Set model files (licensed; not vendored by tooling, obtained out of band)
 assets/
+assets-archive/
 
 # logs
 *.log

@@ -5,12 +5,14 @@ import { enemySpawnToEnemy } from "./waves.js";
 
 export const ACQUISITION_RANGE = 360;
 export const FIRE_RANGE = 380;
-export const RING_AURA_RANGE = 200;
-export const RING_DURATION_MS = 6000;
+export const RING_ZAP_RADIUS = 90;
+export const RING_ZAP_RADIUS_SQ = RING_ZAP_RADIUS * RING_ZAP_RADIUS;
+export const RING_ZAP_INTERVAL_MS = 250;
+export const RING_ZAP_DAMAGE = 0.15;
 
 export function setCannonMode(piece: PlacedPiece, mode: CannonMode): void {
   piece.mode = mode;
-  piece.ringTimerMs = RING_DURATION_MS;
+  piece.ringTimerMs = 6000;
 }
 
 export function tickPieces(state: GameState, dtMs: number): void {
@@ -24,26 +26,57 @@ export function tickPieces(state: GameState, dtMs: number): void {
     }
     p.fireCooldownMs = Math.max(0, p.fireCooldownMs - dtMs);
   }
+  for (const p of state.pieces) {
+    if (p.role !== "ring") continue;
+    p.zapTimerMs += dtMs;
+    while (p.zapTimerMs >= RING_ZAP_INTERVAL_MS) {
+      p.zapTimerMs -= RING_ZAP_INTERVAL_MS;
+      let hitCount = 0;
+      const zapDamage = RING_ZAP_DAMAGE + state.upgrades.ringZap * 0.1;
+      for (const e of state.enemies) {
+        const dx = e.pos.x - p.x;
+        const dy = e.pos.y - p.y;
+        if (dx * dx + dy * dy <= RING_ZAP_RADIUS_SQ) {
+          e.hp -= zapDamage;
+          hitCount++;
+          if (e.hp <= 0) {
+            state.gold += e.reward;
+            state.waveEnemiesRemaining = Math.max(0, state.waveEnemiesRemaining - 1);
+            spawnDeathParticles(state, e.pos.x, e.pos.y, e.kind);
+            const idx = state.enemies.findIndex((x) => x.id === e.id);
+            if (idx >= 0) state.enemies.splice(idx, 1);
+          } else {
+            spawnHitParticles(state, e.pos.x, e.pos.y, 2, "#ff7adf");
+          }
+        }
+      }
+      if (hitCount === 0) {
+        p.zapTimerMs = 0;
+        break;
+      }
+    }
+  }
 }
 
 export function selectTarget(piece: PlacedPiece, enemies: ReadonlyArray<Enemy>): Enemy | null {
   let best: Enemy | null = null;
+  let bestPri = -1;
   let bestDistSq = ACQUISITION_RANGE * ACQUISITION_RANGE;
+  const maxRangeSq = ACQUISITION_RANGE * ACQUISITION_RANGE;
   for (const e of enemies) {
     const dx = e.pos.x - piece.x;
     const dy = e.pos.y - piece.y;
     const distSq = dx * dx + dy * dy;
-    if (distSq > bestDistSq) continue;
+    if (distSq > maxRangeSq) continue;
     const angleTo = (Math.atan2(dy, dx) * 180) / Math.PI;
     let diff = angleTo - piece.orientation;
     while (diff > 180) diff -= 360;
     while (diff < -180) diff += 360;
     if (Math.abs(diff) > 50) continue;
-    if (best === null || priority(e) > priority(best)) {
+    const pri = priority(e);
+    if (best === null || pri > bestPri || (pri === bestPri && distSq < bestDistSq)) {
       best = e;
-      bestDistSq = distSq;
-    } else if (priority(e) === priority(best) && distSq < (best.pos.x - piece.x) ** 2 + (best.pos.y - piece.y) ** 2) {
-      best = e;
+      bestPri = pri;
       bestDistSq = distSq;
     }
   }
@@ -71,16 +104,46 @@ export function fireCannons(state: GameState, dtMs: number): void {
     if (p.fireCooldownMs > 0) continue;
     const target = selectTarget(p, state.enemies);
     if (!target) continue;
-    const dx = target.pos.x - p.x;
-    const dy = target.pos.y - p.y;
-    const desiredAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
-    p.orientation = lerpAngle(p.orientation, desiredAngle, 0.4);
-    let diff = desiredAngle - p.orientation;
+    const aim = computeAim(p, target);
+    p.orientation = lerpAngle(p.orientation, aim.angle, 0.5);
+    let diff = aim.angle - p.orientation;
     while (diff > 180) diff -= 360;
     while (diff < -180) diff += 360;
-    if (Math.abs(diff) > 6) continue;
+    if (Math.abs(diff) > 5) continue;
     shoot(state, p, target);
   }
+}
+
+const PROJECTILE_SPEED = 900;
+
+function computeAim(p: PlacedPiece, target: import("./types.js").Enemy): { angle: number } {
+  const dx = target.pos.x - p.x;
+  const dy = target.pos.y - p.y;
+  const dist = Math.hypot(dx, dy);
+  let vx = 0;
+  let vy = 0;
+  if (target.pathIndex < target.path.length - 1) {
+    const next = target.path[target.pathIndex + 1];
+    const ndx = next.x - target.pos.x;
+    const ndy = next.y - target.pos.y;
+    const ndist = Math.hypot(ndx, ndy);
+    if (ndist > 0) {
+      const ts = target.speed * target.slowFactor;
+      vx = (ndx / ndist) * ts;
+      vy = (ndy / ndist) * ts;
+    }
+  }
+  let timeToHit = dist / PROJECTILE_SPEED;
+  for (let i = 0; i < 2; i++) {
+    const fx = target.pos.x + vx * timeToHit;
+    const fy = target.pos.y + vy * timeToHit;
+    const fd = Math.hypot(fx - p.x, fy - p.y);
+    timeToHit = fd / PROJECTILE_SPEED;
+  }
+  const leadX = target.pos.x + vx * timeToHit;
+  const leadY = target.pos.y + vy * timeToHit;
+  const angle = (Math.atan2(leadY - p.y, leadX - p.x) * 180) / Math.PI;
+  return { angle };
 }
 
 function lerpAngle(a: number, b: number, t: number): number {
@@ -91,7 +154,8 @@ function lerpAngle(a: number, b: number, t: number): number {
 }
 
 function shoot(state: GameState, p: PlacedPiece, target: Enemy): void {
-  const baseCooldown = 700;
+  const cdMult = 1 - state.upgrades.cannonRate * 0.2;
+  const baseCooldown = 700 * cdMult;
   const baseDamage = 1;
   let cooldown = baseCooldown;
   let damage = baseDamage;
@@ -112,12 +176,12 @@ function shoot(state: GameState, p: PlacedPiece, target: Enemy): void {
       break;
     case "pierce":
       cooldown = 900;
-      pierce = true;
       damage = 2;
+      pierce = true;
       break;
   }
   p.fireCooldownMs = cooldown;
-  const speed = 720;
+  const speed = PROJECTILE_SPEED;
   const rad = (p.orientation * Math.PI) / 180;
   const dx = Math.cos(rad);
   const dy = Math.sin(rad);
@@ -224,11 +288,31 @@ function applyHit(state: GameState, e: Enemy, p: import("./types.js").Projectile
 
 export function tickEnemies(state: GameState, dtMs: number): void {
   const dt = dtMs / 1000;
+  const STAIR_RADIUS = 36;
+  const STAIR_RADIUS_SQ = STAIR_RADIUS * STAIR_RADIUS;
+  const stairs: Array<{ x: number; y: number }> = [];
+  for (const p of state.pieces) {
+    if (p.role === "stair") stairs.push({ x: p.x, y: p.y });
+  }
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const e = state.enemies[i];
     if (e.slowTimerMs > 0) {
       e.slowTimerMs = Math.max(0, e.slowTimerMs - dtMs);
       if (e.slowTimerMs <= 0) e.slowFactor = 1;
+    }
+    if (e.kind !== "tank") {
+      for (const s of stairs) {
+        const dx = e.pos.x - s.x;
+        const dy = e.pos.y - s.y;
+        if (dx * dx + dy * dy <= STAIR_RADIUS_SQ) {
+          if (e.slowTimerMs <= 0) {
+            const sf = 0.55 - state.upgrades.stairSlow * 0.15;
+            e.slowTimerMs = 1800;
+            e.slowFactor = Math.max(0.05, sf);
+            spawnHitParticles(state, e.pos.x, e.pos.y, 6, "#7adfff");
+          }
+         }
+      }
     }
     const speed = e.speed * e.slowFactor;
     let moved = speed * dt;
@@ -272,6 +356,11 @@ export function tickWaveSpawns(state: GameState, dtMs: number): void {
     }
     const path = state.paths[spawn.lane] ?? state.path;
     const enemy = enemySpawnToEnemy(spawn, state.nextEnemyId++, path, performance.now());
+    const speedMult = 1 + 0.2 * state.waveIndex;
+    enemy.speed *= speedMult;
+    const hpMult = 1 + 0.5 * state.waveIndex;
+    enemy.hp = Math.round(enemy.hp * hpMult);
+    enemy.maxHp = Math.round(enemy.maxHp * hpMult);
     state.enemies.push(enemy);
     state.waveSpawnTimerMs -= spawn.delayMs;
   }

@@ -35,8 +35,8 @@ describe("pathing", () => {
 
   it("blockedSetFromPieces ignores non-blocks", () => {
     const pieces: PlacedPiece[] = [
-      { id: 1, role: "cannon", x: 200, y: 200, orientation: 0, mode: "single", ringTimerMs: 0, fireCooldownMs: 0, hp: 1 },
-      { id: 2, role: "block", x: 200, y: 200, orientation: 0, mode: "single", ringTimerMs: 0, fireCooldownMs: 0, hp: 3 },
+      { id: 1, role: "cannon", x: 200, y: 200, orientation: 0, mode: "single", ringTimerMs: 0, fireCooldownMs: 0, hp: 1, zapTimerMs: 0 },
+      { id: 2, role: "block", x: 200, y: 200, orientation: 0, mode: "single", ringTimerMs: 0, fireCooldownMs: 0, hp: 3, zapTimerMs: 0 },
     ];
     const set = blockedSetFromPieces(pieces);
     expect(set.size).toBe(1);

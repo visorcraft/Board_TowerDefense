@@ -38,6 +38,7 @@ export interface PlacedPiece {
   ringTimerMs: number;
   fireCooldownMs: number;
   hp: number;
+  zapTimerMs: number;
 }
 
 export type EnemyKind = "walker" | "runner" | "tank" | "swarm" | "boss";
@@ -116,6 +117,7 @@ export interface GameState {
   victories: number;
   unlockedModes: CannonMode[];
   waveEnemiesRemaining: number;
+  waveEnemiesTotal: number;
   waveSpawnQueue: EnemySpawn[];
   waveSpawnTimerMs: number;
   totalWaves: number;
@@ -127,7 +129,22 @@ export interface GameState {
   laneColors: number[];
   message: string;
   messageTimerMs: number;
+  selectedPieceId: number | null;
+  selectionTimerMs: number;
+  betweenWave: boolean;
+  shopOpen: boolean;
+  upgrades: PieceUpgrades;
 }
+
+export interface PieceUpgrades {
+  ringZap: number;
+  cannonRate: number;
+  stairSlow: number;
+  blockSize: number;
+}
+
+export const MAX_UPGRADE_LEVEL = 3;
+export const UPGRADE_COST_PER_LEVEL = [20, 40, 80, 160];
 
 export interface EnemySpawn {
   kind: EnemyKind;

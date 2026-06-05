@@ -1,4 +1,5 @@
 import type { GameState, PlacedPiece } from "./types.js";
+import { type Role } from "./types.js";
 import { PASSIVE_GOLD_PER_MS } from "./state.js";
 
 export const PIECE_COSTS = {
@@ -25,7 +26,7 @@ export function spend(state: GameState, amount: number): boolean {
   return true;
 }
 
-export function placePiece(state: GameState, piece: Omit<PlacedPiece, "id" | "fireCooldownMs" | "ringTimerMs" | "hp">): PlacedPiece | null {
+export function placePiece(state: GameState, piece: Omit<PlacedPiece, "id" | "fireCooldownMs" | "ringTimerMs" | "hp" | "zapTimerMs">): PlacedPiece | null {
   if (piece.role === "unknown") return null;
   const cost = PIECE_COSTS[piece.role] ?? 0;
   if (piece.role !== "ring" && !spend(state, cost)) return null;
@@ -36,6 +37,7 @@ export function placePiece(state: GameState, piece: Omit<PlacedPiece, "id" | "fi
     fireCooldownMs: 0,
     ringTimerMs: 0,
     hp: piece.role === "block" ? 3 : 1,
+    zapTimerMs: 0,
   };
   state.pieces.push(placed);
   return placed;
@@ -48,4 +50,20 @@ export function removePiece(state: GameState, id: number): boolean {
   if (p.role === "block" && !spend(state, state.blockRemovalCost)) return false;
   state.pieces.splice(idx, 1);
   return true;
+}
+
+export function sellPiece(state: GameState, id: number): number {
+  const idx = state.pieces.findIndex((p) => p.id === id);
+  if (idx < 0) return 0;
+  const p = state.pieces[idx];
+  if (p.role === "unknown") return 0;
+  const refund = Math.floor(PIECE_COSTS[p.role] / 2);
+  state.pieces.splice(idx, 1);
+  state.gold += refund;
+  return refund;
+}
+
+export function refundFor(role: Role): number {
+  if (role === "unknown") return 0;
+  return Math.floor(PIECE_COSTS[role] / 2);
 }

@@ -1,5 +1,6 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH, PLAYFIELD } from "../game/state.js";
-import type { GameState, PlacedPiece, Enemy, Projectile, Particle, Vec2 } from "../game/types.js";
+import type { GameState, PlacedPiece, Enemy, Projectile, Particle, Vec2, PieceUpgrades } from "../game/types.js";
+import { MAX_UPGRADE_LEVEL, UPGRADE_COST_PER_LEVEL } from "../game/types.js";
 import { LANE_COUNT } from "../game/round.js";
 import { PALETTE, rgba } from "./palette.js";
 import {
@@ -16,7 +17,7 @@ import {
   stairSprite,
   strokeRect,
 } from "./sprites.js";
-import { cannonModeColor } from "../game/targeting.js";
+import { cannonModeColor, RING_ZAP_RADIUS } from "../game/targeting.js";
 
 const SPRITES = {
   cannon: cannonSprite(),
@@ -60,13 +61,11 @@ export function drawBackground(ctx: CanvasRenderingContext2D, state: GameState):
     const path = state.paths[i];
     if (!path || path.length < 2) continue;
     ctx.strokeStyle = laneColorRgba(i, 0.35);
-    ctx.lineWidth = 6;
-    ctx.setLineDash([12, 8]);
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(path[0].x, path[0].y);
     for (const p of path) ctx.lineTo(p.x, p.y);
     ctx.stroke();
-    ctx.setLineDash([]);
   }
   drawGoal(ctx);
   drawSpawn(ctx);
@@ -75,7 +74,7 @@ export function drawBackground(ctx: CanvasRenderingContext2D, state: GameState):
 }
 
 function drawGoal(ctx: CanvasRenderingContext2D): void {
-  const x = PLAYFIELD.goalX - 30;
+  const x = PLAYFIELD.spawnX - 30;
   const y = (PLAYFIELD.top + PLAYFIELD.bottom) / 2;
   const w = 60;
   const h = 220;
@@ -85,7 +84,7 @@ function drawGoal(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawSpawn(ctx: CanvasRenderingContext2D): void {
-  const x = PLAYFIELD.spawnX - 30;
+  const x = PLAYFIELD.goalX - 30;
   const y = (PLAYFIELD.top + PLAYFIELD.bottom) / 2;
   const w = 60;
   const h = 220;
@@ -115,7 +114,11 @@ function drawPiece(ctx: CanvasRenderingContext2D, p: PlacedPiece): void {
     drawCircle(ctx, p.x, p.y, 30, rgba(PALETTE.piece.ring, 0.2 + 0.4 * t), false);
   }
   if (p.role === "cannon") {
-    drawCircle(ctx, p.x, p.y, 18, rgba(cannonModeColor(p.mode), 0.6), false);
+    drawCircle(ctx, p.x, p.y, 29, rgba(cannonModeColor(p.mode), 0.5), false);
+  }
+  if (p.role === "ring") {
+    drawCircle(ctx, p.x, p.y, RING_ZAP_RADIUS, rgba(PALETTE.piece.ring, 0.15), true);
+    drawCircle(ctx, p.x, p.y, RING_ZAP_RADIUS, rgba(PALETTE.piece.ring, 0.45), false);
   }
   if (p.hp < (p.role === "block" ? 3 : 1)) {
     drawText(ctx, "x" + p.hp, p.x + 18, p.y - 22, PALETTE.hp, 14, "left", "middle");
@@ -145,19 +148,73 @@ export function drawEnemies(ctx: CanvasRenderingContext2D, state: GameState): vo
 
 function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy): void {
   const color = PALETTE.enemy[e.kind];
-  drawCircle(ctx, e.pos.x, e.pos.y, e.size, color, true);
-  drawCircle(ctx, e.pos.x, e.pos.y, e.size, "#1a1f30", false);
+  const cx = e.pos.x;
+  const cy = e.pos.y;
+  const r = e.size;
+  // outer glow
+  const glow = ctx.createRadialGradient(cx, cy, r * 0.4, cx, cy, r * 1.3);
+  glow.addColorStop(0, "rgba(0,0,0,0)");
+  glow.addColorStop(0.7, "rgba(0,0,0,0)");
+  glow.addColorStop(1, rgba(color, 0.25));
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.3, 0, Math.PI * 2);
+  ctx.fill();
+  // body
+  const body = ctx.createRadialGradient(cx - r * 0.2, cy - r * 0.3, r * 0.1, cx, cy, r * 0.9);
+  body.addColorStop(0, "#ffffff");
+  body.addColorStop(0.3, color);
+  body.addColorStop(1, "#1a1f30");
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  // rim
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = rgba("#ffffff", 0.3);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  if (e.kind === "swarm") {
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const dx = Math.cos(a) * r * 0.6;
+      const dy = Math.sin(a) * r * 0.6;
+      ctx.fillStyle = rgba("#ffffff", 0.5);
+      ctx.beginPath();
+      ctx.arc(cx + dx, cy + dy, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
   if (e.slowTimerMs > 0) {
-    drawCircle(ctx, e.pos.x, e.pos.y, e.size + 4, "#5fb3ff", false);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = "#5fb3ff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
   if (e.kind === "boss") {
-    drawCircle(ctx, e.pos.x, e.pos.y, e.size + 8, rgba(color, 0.3), true);
+    const bossGlow = ctx.createRadialGradient(cx, cy, r, cx, cy, r + 14);
+    bossGlow.addColorStop(0, "rgba(255,95,122,0.4)");
+    bossGlow.addColorStop(1, "rgba(255,95,122,0)");
+    ctx.fillStyle = bossGlow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 14, 0, Math.PI * 2);
+    ctx.fill();
   }
   if (e.hp < e.maxHp) {
-    const w = e.size * 2;
+    const w = r * 2;
     const hp = e.hp / e.maxHp;
-    fillRect(ctx, e.pos.x - w / 2, e.pos.y - e.size - 10, w, 4, "#3a1a25");
-    fillRect(ctx, e.pos.x - w / 2, e.pos.y - e.size - 10, w * hp, 4, color);
+    ctx.fillStyle = "#1a0a10";
+    ctx.fillRect(cx - w / 2, cy - r - 10, w, 5);
+    const hpGrad = ctx.createLinearGradient(cx - w / 2, 0, cx - w / 2 + w * hp, 0);
+    hpGrad.addColorStop(0, "#ff3040");
+    hpGrad.addColorStop(1, color);
+    ctx.fillStyle = hpGrad;
+    ctx.fillRect(cx - w / 2, cy - r - 10, w * hp, 5);
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - w / 2, cy - r - 10, w, 5);
   }
 }
 
@@ -165,7 +222,20 @@ export function drawProjectiles(ctx: CanvasRenderingContext2D, state: GameState)
   for (const p of state.projectiles) {
     const t = p.lifeMs / 1500;
     const color = p.slow ? "#5fb3ff" : p.pierce ? "#ff5f7a" : PALETTE.projectile;
-    drawCircle(ctx, p.x, p.y, 5 + 2 * (1 - t), rgba(color, 1 - t * 0.4), true);
+    const r = (5 + 2 * (1 - t));
+    // glow
+    const glow = ctx.createRadialGradient(p.x, p.y, r * 0.3, p.x, p.y, r * 2);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r * 2, 0, Math.PI * 2);
+    ctx.fill();
+    // core
+    ctx.fillStyle = rgba("#ffffff", 1 - t * 0.3);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r * 0.6, 0, Math.PI * 2);
+    ctx.fill();
   }
   void state;
 }
@@ -181,7 +251,7 @@ export function drawParticles(ctx: CanvasRenderingContext2D, state: GameState): 
 export function drawHud(ctx: CanvasRenderingContext2D, state: GameState, tickFrame: number): void {
   const top = 24;
   const left = 32;
-  drawText(ctx, "Tower Defense — Save the Bloogs", left, top, PALETTE.text, 32, "left", "top");
+  drawText(ctx, "Tower Defense", left, top, PALETTE.text, 32, "left", "top");
   drawText(ctx, `Wave ${state.waveIndex + 1} / ${state.totalWaves}`, left, top + 44, PALETTE.textDim, 20, "left", "top");
   drawText(ctx, `Phase: ${state.phase.toUpperCase()}`, left, top + 70, PALETTE.textDim, 18, "left", "top");
   if (state.phase === "build") {
@@ -190,12 +260,74 @@ export function drawHud(ctx: CanvasRenderingContext2D, state: GameState, tickFra
   drawHudGold(ctx, state, left, top + 124);
   drawHudGoal(ctx, state, left, top + 162);
   drawHudProgress(ctx, state, CANVAS_WIDTH - 360, top);
+  drawWaveProgress(ctx, state, tickFrame);
   drawShopHint(ctx, state, CANVAS_WIDTH / 2, top + 200, tickFrame);
-  drawDebugStrip(ctx, state);
+  if (state.diagnostic) drawDebugStrip(ctx, state);
   if (state.messageTimerMs > 0) {
     const a = Math.min(1, state.messageTimerMs / 500);
     drawText(ctx, state.message, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 60, rgba(PALETTE.text, a), 26, "center", "middle");
   }
+}
+
+export function drawWaveProgress(ctx: CanvasRenderingContext2D, state: GameState, _tickFrame: number): void {
+  if (state.phase === "victory" || state.phase === "defeat") return;
+  if (state.phase === "build" && state.waveEnemiesTotal === 0) return;
+  const w = 360;
+  const h = 28;
+  const x = Math.floor((CANVAS_WIDTH - w) / 2);
+  const y = 24;
+  const total = Math.max(1, state.waveEnemiesTotal);
+  const cleared = total - state.waveEnemiesRemaining;
+  const ratio = Math.max(0, Math.min(1, cleared / total));
+  fillRect(ctx, x, y, w, h, "#161a28");
+  strokeRect(ctx, x, y, w, h, PALETTE.panelLine, 2);
+  fillRect(ctx, x, y, Math.floor(w * ratio), h, rgba("#5fb3ff", 0.7));
+  const label = `Wave ${state.waveIndex + 1} — ${state.waveEnemiesRemaining} of ${total} remaining`;
+  drawText(ctx, label, x + w / 2, y + h / 2, PALETTE.text, 16, "center", "middle");
+}
+
+export function drawPieceSellX(ctx: CanvasRenderingContext2D, piece: PlacedPiece, tickFrame: number): void {
+  const cx = piece.x + 48;
+  const cy = piece.y;
+  const pulsing = (tickFrame % 60) < 30;
+  fillRect(ctx, cx - 18, cy - 18, 36, 36, pulsing ? "#3a1a25" : "#2a0f17");
+  strokeRect(ctx, cx - 18, cy - 18, 36, 36, PALETTE.hp, 3);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = PALETTE.hp;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 8);
+  ctx.lineTo(cx + 8, cy + 8);
+  ctx.moveTo(cx + 8, cy - 8);
+  ctx.lineTo(cx - 8, cy + 8);
+  ctx.stroke();
+  drawText(ctx, "SELL", cx + 30, cy - 24, PALETTE.hp, 14, "left", "middle");
+  drawText(ctx, `${Math.ceil(((piece.role === "cannon" ? 25 : piece.role === "block" ? 8 : piece.role === "stair" ? 12 : piece.role === "ring" ? 30 : 0) / 2))}g`, cx + 30, cy + 4, PALETTE.gold, 18, "left", "middle");
+}
+
+export function pieceSellXBounds(piece: PlacedPiece): { x: number; y: number; w: number; h: number } {
+  const cx = piece.x + 48;
+  const cy = piece.y;
+  return { x: cx - 22, y: cy - 22, w: 44, h: 44 };
+}
+
+export function drawPlayAgainButton(ctx: CanvasRenderingContext2D, tickFrame: number): void {
+  const w = 480;
+  const h = 120;
+  const x = Math.floor((CANVAS_WIDTH - w) / 2);
+  const y = Math.floor((CANVAS_HEIGHT - h) / 2) + 60;
+  const pulsing = (tickFrame % 60) < 30;
+  fillRect(ctx, x, y, w, h, pulsing ? "#1a2238" : "#13182a");
+  strokeRect(ctx, x + 4, y + 4, w - 8, h - 8, "#ffce4a", 6);
+  drawText(ctx, "PLAY AGAIN", x + w / 2, y + h / 2 - 8, PALETTE.gold, 56, "center", "middle");
+  drawText(ctx, "(tap to start a new run)", x + w / 2, y + h + 28, PALETTE.textDim, 22, "center", "middle");
+}
+
+export function playAgainButtonBounds(): { x: number; y: number; w: number; h: number } {
+  const w = 480;
+  const h = 120;
+  const x = Math.floor((CANVAS_WIDTH - w) / 2);
+  const y = Math.floor((CANVAS_HEIGHT - h) / 2) + 60;
+  return { x, y, w, h };
 }
 
 function drawHudGold(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number): void {
@@ -244,7 +376,7 @@ function drawShopHint(ctx: CanvasRenderingContext2D, state: GameState, x: number
     drawText(ctx, `[${it.key}]`, x0 + 8, y0 + 8, "#7c87a8", 16, "left", "top");
     drawText(ctx, it.role.toUpperCase(), x0 + w / 2, y0 + 28, "#e6ecff", 18, "center", "top");
     drawText(ctx, `${it.cost}g`, x0 + w / 2, y0 + 54, canAfford ? PALETTE.gold : "#7c87a8", 22, "center", "top");
-    drawText(ctx, it.role === "ring" ? "tap a cannon" : "tap to place", x0 + w / 2, y0 + 76, "#7c87a8", 12, "center", "top");
+    drawText(ctx, it.role === "ring" ? "zap aura" : "tap to place", x0 + w / 2, y0 + 76, "#7c87a8", 12, "center", "top");
   }
   drawText(ctx, "[Space] Start wave   [D]/Long-press/DIAG   [R] Restart", x, y0 + h + 28, "#7c87a8", 16, "center", "top");
   drawText(ctx, "Tap to place • Drag to move • Press Q/E to rotate • System menu = pause", x, y0 + h + 52, "#7c87a8", 14, "center", "top");
@@ -268,7 +400,7 @@ export function drawPhaseOverlay(ctx: CanvasRenderingContext2D, state: GameState
     ctx.fillStyle = rgba("#000", 0.6);
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     drawText(ctx, "VICTORY", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40, PALETTE.gold, 96, "center", "middle");
-    drawText(ctx, "All waves cleared. The Bloogs are safe.", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40, PALETTE.text, 28, "center", "middle");
+    drawText(ctx, "All waves cleared. You win!", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40, PALETTE.text, 28, "center", "middle");
   } else if (state.phase === "defeat") {
     ctx.fillStyle = rgba("#000", 0.7);
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -277,4 +409,144 @@ export function drawPhaseOverlay(ctx: CanvasRenderingContext2D, state: GameState
     drawText(ctx, "Auto-restart in " + Math.ceil(state.phaseTimerMs / 1000) + "s", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 90, "#7c87a8", 22, "center", "middle");
   }
   void (null as unknown as Vec2);
+}
+
+const UPGRADE_KEYS: Array<keyof PieceUpgrades> = ["ringZap", "cannonRate", "stairSlow", "blockSize"];
+
+export function drawBetweenWaveOverlay(ctx: CanvasRenderingContext2D, state: GameState, tickFrame: number): void {
+  ctx.fillStyle = rgba("#000", 0.55);
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  const cx = CANVAS_WIDTH / 2;
+  const cy = CANVAS_HEIGHT / 2;
+  const pulse = (tickFrame % 60) < 30;
+  drawText(ctx, "WAVE " + state.waveIndex + " CLEARED", cx, cy - 90, PALETTE.gold, 64, "center", "middle");
+  drawText(ctx, "Tap anywhere to start Wave " + (state.waveIndex + 1), cx, cy - 10, "#7aff4f", 36, "center", "middle");
+  drawText(ctx, "Or open System Menu → Visit Shop / Next Wave", cx, cy + 50, PALETTE.textDim, 24, "center", "middle");
+  const bw = 500;
+  const bh = 90;
+  const btnX = cx - bw / 2;
+  const btnY = cy + 100;
+  fillRect(ctx, btnX, btnY, bw, bh, pulse ? "#0a1f0a" : "#051005");
+  strokeRect(ctx, btnX, btnY, bw, bh, "#7aff4f", 5);
+  drawText(ctx, "NEXT WAVE", cx, btnY + bh / 2, "#7aff4f", 44, "center", "middle");
+}
+
+export function betweenWaveTapAnywhere(): boolean {
+  return true;
+}
+
+export function drawShopOverlay(ctx: CanvasRenderingContext2D, state: GameState): void {
+  ctx.fillStyle = rgba("#000", 0.75);
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  drawText(ctx, "UPGRADE SHOP", CANVAS_WIDTH / 2, 48, PALETTE.gold, 52, "center", "top");
+  drawText(ctx, Math.floor(state.gold) + "g available   (use System Menu to exit)", CANVAS_WIDTH / 2, 108, PALETTE.text, 22, "center", "top");
+  const cardW = 380;
+  const cardH = 260;
+  const gap = 40;
+  const totalW = UPGRADE_KEYS.length * cardW + (UPGRADE_KEYS.length - 1) * gap;
+  const left = Math.floor((CANVAS_WIDTH - totalW) / 2);
+  const top = 160;
+  for (let i = 0; i < UPGRADE_KEYS.length; i++) {
+    const key = UPGRADE_KEYS[i];
+    const x = left + i * (cardW + gap);
+    const y = top;
+    const level = state.upgrades[key];
+    const maxed = level >= MAX_UPGRADE_LEVEL;
+    const cost = maxed ? 0 : UPGRADE_COST_PER_LEVEL[level];
+    const canAfford = !maxed && state.gold >= cost;
+    fillRect(ctx, x, y, cardW, cardH, "#0d1326");
+    strokeRect(ctx, x, y, cardW, cardH, maxed ? "#ffce4a" : canAfford ? "#5fb3ff" : "#3a3f55", 3);
+    const role = roleForUpgradeKey(key);
+    drawText(ctx, roleName(role), x + cardW / 2, y + 20, roleColor(role), 36, "center", "top");
+    drawText(ctx, upgradeLabelName(key), x + cardW / 2, y + 64, PALETTE.textDim, 18, "center", "top");
+    drawText(ctx, "Level " + level + "/" + MAX_UPGRADE_LEVEL, x + cardW / 2, y + 100, PALETTE.text, 22, "center", "top");
+    if (!maxed) {
+      drawText(ctx, upgradeDescText(key, level), x + cardW / 2, y + 140, PALETTE.textDim, 16, "center", "top");
+      drawText(ctx, cost + "g", x + cardW / 2, y + 178, canAfford ? PALETTE.gold : PALETTE.hp, 28, "center", "top");
+      const btnW = cardW - 20;
+      const btnH = 56;
+      const btnX = x + 10;
+      const btnY = y + cardH - btnH - 8;
+      fillRect(ctx, btnX, btnY, btnW, btnH, canAfford ? "#1a2238" : "#161a28");
+      strokeRect(ctx, btnX, btnY, btnW, btnH, canAfford ? "#5fb3ff" : "#3a3f55", 3);
+      drawText(ctx, "BUY", btnX + btnW / 2, btnY + btnH / 2, canAfford ? PALETTE.gold : "#7c87a8", 30, "center", "middle");
+    } else {
+      drawText(ctx, "MAX LEVEL", x + cardW / 2, y + 150, "#ffce4a", 32, "center", "top");
+    }
+  }
+  const doneH = 80;
+  const doneY = CANVAS_HEIGHT - doneH - 20;
+  fillRect(ctx, 0, doneY, CANVAS_WIDTH, doneH, "#1a2238");
+  strokeRect(ctx, 0, doneY, CANVAS_WIDTH, doneH, "#5fb3ff", 4);
+  drawText(ctx, "DONE — tap anywhere at bottom to close shop", CANVAS_WIDTH / 2, doneY + doneH / 2, PALETTE.text, 36, "center", "middle");
+}
+
+export function shopBuyButtonBounds(key: keyof PieceUpgrades, state: GameState): { x: number; y: number; w: number; h: number } {
+  const cardW = 380;
+  const cardH = 260;
+  const gap = 40;
+  const totalW = UPGRADE_KEYS.length * cardW + (UPGRADE_KEYS.length - 1) * gap;
+  const left = Math.floor((CANVAS_WIDTH - totalW) / 2);
+  const top = 160;
+  const i = UPGRADE_KEYS.indexOf(key);
+  const x = left + i * (cardW + gap);
+  const btnW = cardW - 20;
+  const btnH = 56;
+  const btnX = x + 10;
+  const btnY = top + cardH - btnH - 8;
+  return { x: btnX, y: btnY, w: btnW, h: btnH };
+}
+
+export function shopDoneButtonBounds(): { x: number; y: number; w: number; h: number } {
+  const doneH = 80;
+  const doneY = CANVAS_HEIGHT - doneH - 20;
+  return { x: 0, y: doneY, w: CANVAS_WIDTH, h: doneH };
+}
+
+function roleForUpgradeKey(key: keyof PieceUpgrades): string {
+  switch (key) {
+    case "ringZap": return "ring";
+    case "cannonRate": return "cannon";
+    case "stairSlow": return "stair";
+    case "blockSize": return "block";
+  }
+}
+
+function roleName(role: string): string {
+  switch (role) {
+    case "ring": return "SHAPESHIFTER RING";
+    case "cannon": return "CANNON";
+    case "stair": return "STAIR";
+    case "block": return "BLOCK";
+  }
+  return role.toUpperCase();
+}
+
+function roleColor(role: string): string {
+  switch (role) {
+    case "ring": return PALETTE.piece.ring;
+    case "cannon": return PALETTE.piece.cannon;
+    case "stair": return PALETTE.piece.stair;
+    case "block": return PALETTE.piece.block;
+  }
+  return PALETTE.text;
+}
+
+function upgradeLabelName(key: keyof PieceUpgrades): string {
+  switch (key) {
+    case "ringZap": return "Zap damage";
+    case "cannonRate": return "Fire rate";
+    case "stairSlow": return "Slow strength";
+    case "blockSize": return "Block size";
+  }
+}
+
+function upgradeDescText(key: keyof PieceUpgrades, level: number): string {
+  const nl = level + 1;
+  switch (key) {
+    case "ringZap": return (0.15 + level * 0.1).toFixed(2) + " → " + (0.15 + nl * 0.1).toFixed(2) + " dmg/tick";
+    case "cannonRate": return ((1 - level * 0.2) * 100).toFixed(0) + " → " + ((1 - nl * 0.2) * 100).toFixed(0) + "% cooldown";
+    case "stairSlow": return (0.55 - level * 0.15).toFixed(2) + " → " + (0.55 - nl * 0.15).toFixed(2) + "× speed";
+    case "blockSize": return (level + 1) + " → " + (nl + 1) + " tile radius";
+  }
 }

@@ -1,12 +1,12 @@
 import { PLAYFIELD, CANVAS_WIDTH, defaultState } from "./game/state.js";
-import { tick, pieceAt, roleForPlacement, ensurePath, startWave, resetRound } from "./game/round.js";
+import { tick, pieceAt, roleForPlacement, ensurePath, startWave, resetRound, startWaveFromBetween, openShop, closeShop, buyUpgrade } from "./game/round.js";
 import type { InputSource } from "./board/boardInput.js";
 import { type DevContact } from "./board/boardInput.js";
 import type { PieceMappingTable } from "./board/pieceMapping.js";
-import { drawBackground, drawEnemies, drawHud, drawParticles, drawPieces, drawPhaseOverlay, drawProjectiles, setupCanvas } from "./render/canvas.js";
-import { CANNON_MODES, type CannonMode, type GameState, type Role } from "./game/types.js";
+import { drawBackground, drawEnemies, drawHud, drawParticles, drawPieces, drawPhaseOverlay, drawPieceSellX, drawPlayAgainButton, drawProjectiles, drawBetweenWaveOverlay, drawShopOverlay, pieceSellXBounds, playAgainButtonBounds, shopBuyButtonBounds, shopDoneButtonBounds, setupCanvas } from "./render/canvas.js";
+import { CANNON_MODES, type CannonMode, type GameState, type Role, type PieceUpgrades } from "./game/types.js";
 import { setCannonMode } from "./game/targeting.js";
-import { placePiece } from "./game/economy.js";
+import { placePiece, sellPiece } from "./game/economy.js";
 import { AudioBus } from "./audio/cues.js";
 import { SaveStore } from "./board/saveStore.js";
 import { PauseMenu } from "./board/pauseMenu.js";
@@ -50,6 +50,8 @@ export class App {
   private debugMsg = "—";
   private appId = "";
 
+  private ctx: CanvasRenderingContext2D | null = null;
+
   constructor(opts: AppOptions) {
     this.canvas = opts.canvas;
     this.input = opts.input;
@@ -67,6 +69,8 @@ export class App {
   async start(): Promise<void> {
     this.installPause();
     this.installInput();
+    const r = setupCanvas(this.canvas);
+    this.ctx = r.ctx;
     const loaded = await this.save.load();
     if (loaded) {
       this.applyProgress(loaded);
@@ -124,7 +128,21 @@ export class App {
         if (this.state.saveDirty) {
           void this.save.save(this.state);
         }
-        if (Board.isOnDevice) Board.application.quit();
+        this.stop();
+        if (Board.isOnDevice) {
+          try {
+            Board.application.quit();
+          } catch (e) {
+            this.debugMsg = "quit threw: " + String(e);
+          }
+        }
+      },
+      onNextWave: () => {
+        startWaveFromBetween(this.state);
+        this.audio.play("wave");
+      },
+      onVisitShop: () => {
+        if (this.state.betweenWave) openShop(this.state);
       },
       onDebug: (msg) => {
         this.debugMsg = msg;
@@ -156,12 +174,18 @@ export class App {
     if (!this.state.paused) {
       tick(this.state, dt);
     }
+    if (this.state.selectionTimerMs > 0) {
+      this.state.selectionTimerMs = Math.max(0, this.state.selectionTimerMs - dt);
+      if (this.state.selectionTimerMs <= 0) {
+        this.state.selectedPieceId = null;
+      }
+    }
     this.render();
   }
 
   private render(): void {
-    const { ctx, scale: _scale } = setupCanvas(this.canvas);
-    void _scale;
+    const ctx = this.ctx;
+    if (!ctx) return;
     if (this.state.diagnostic) {
       drawDiagnostic(ctx, this.diagLog, this.mapping, Board.isOnDevice);
       this.drawDiagButton(ctx);
@@ -169,31 +193,29 @@ export class App {
     }
     drawBackground(ctx, this.state);
     drawPieces(ctx, this.state);
+    if (this.state.selectedPieceId !== null) {
+      const sel = this.state.pieces.find((p) => p.id === this.state.selectedPieceId);
+      if (sel) drawPieceSellX(ctx, sel, this.tickFrame);
+    }
     drawEnemies(ctx, this.state);
     drawProjectiles(ctx, this.state);
     drawParticles(ctx, this.state);
     drawHud(ctx, this.state, this.tickFrame);
     this.drawDiagButton(ctx);
+    if (this.state.shopOpen) {
+      drawShopOverlay(ctx, this.state);
+    } else if (this.state.betweenWave) {
+      drawBetweenWaveOverlay(ctx, this.state, this.tickFrame);
+    }
+    if (this.state.phase === "victory") {
+      drawPlayAgainButton(ctx, this.tickFrame);
+    }
     drawPhaseOverlay(ctx, this.state);
   }
 
-  private drawDiagButton(ctx: CanvasRenderingContext2D): void {
-    const w = 96;
-    const h = 96;
-    const x = CANVAS_WIDTH - w - 32;
-    const y = 88;
-    const fill = "#1a2238";
-    const stroke = this.state.diagnostic ? "#ffce4a" : "#5fb3ff";
-    ctx.fillStyle = fill;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
-    ctx.font = "32px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = stroke;
-    ctx.fillText("DIAG", x + w / 2, y + h / 2);
+  private drawDiagButton(_ctx: CanvasRenderingContext2D): void {
+    // DIAG button removed; diagnostic is reachable via System Menu → Diagnostic Screen
+    // or by long-pressing anywhere on the canvas.
   }
 
   private handleInputFrame(frame: import("./board/boardInput.js").InputFrame): void {
@@ -221,18 +243,6 @@ export class App {
     if (frame.devRotateRight) {
       const target = this.findSelectedCannon();
       if (target) target.orientation = (target.orientation + 8) % 360;
-    }
-    for (const c of frame.contacts) {
-      if (c.phase === "Began") {
-        const x = c.x;
-        const y = c.y;
-        const btnX = CANVAS_WIDTH - 96 - 32;
-        const btnY = 88;
-        if (x >= btnX && x <= btnX + 96 && y >= btnY && y <= btnY + 96) {
-          this.toggleDiagnostic("DIAG button");
-          return;
-        }
-      }
     }
     this.handleContacts(frame.contacts);
   }
@@ -265,12 +275,14 @@ export class App {
       const prev = this.prevContacts.get(c.contactId);
       const began = c.phase === "Began";
       const ended = c.phase === "Ended" || c.phase === "Canceled";
+      const isFirstSeen = !prev && !ended;
       const lifted = prev?.isTouched && !c.isTouched;
-      if (began || (prev && (c.phase === "Moved" || c.phase === "Stationary") && !this.drag)) {
-      if (began) this.audio.resume();
+      const trigger = began || isFirstSeen;
+      if (trigger || (prev && (c.phase === "Moved" || c.phase === "Stationary") && !this.drag)) {
+      if (trigger) this.audio.resume();
       if (c.glyphId > 0) {
         this.onPieceBegan(c);
-      } else if (c.type === "Finger" && began) {
+      } else if (c.type === "Finger" && trigger) {
         this.onFingerBegan(c);
       }
       }
@@ -327,19 +339,75 @@ export class App {
   }
 
   private onFingerBegan(c: DevContact): void {
-    const existing = pieceAt(this.state, c.x, c.y);
-    if (existing) {
-      this.drag = {
-        pieceId: existing.id,
-        startX: existing.x,
-        startY: existing.y,
-        pointerId: c.contactId,
-        mode: existing.role === "cannon" ? "rotate" : "move",
-        startOrientation: existing.orientation,
-        pointerStartAngle: 0,
-      };
+    if (this.state.shopOpen) {
+      const db = shopDoneButtonBounds();
+      if (c.x >= db.x && c.x <= db.x + db.w && c.y >= db.y && c.y <= db.y + db.h) {
+        closeShop(this.state);
+        this.state.message = "Shop closed.";
+        this.state.messageTimerMs = 1200;
+        return;
+      }
+      for (const key of ["ringZap", "cannonRate", "stairSlow", "blockSize"] as Array<keyof PieceUpgrades>) {
+        const bb = shopBuyButtonBounds(key, this.state);
+        if (c.x >= bb.x && c.x <= bb.x + bb.w && c.y >= bb.y && c.y <= bb.y + bb.h) {
+          const result = buyUpgrade(this.state, key);
+          if (result > 0) {
+            this.audio.play("ring");
+            this.state.message = "Upgraded " + key + " to lvl " + this.state.upgrades[key] + " for " + result + "g.";
+            this.state.messageTimerMs = 2000;
+          } else if (result === -1) {
+            this.state.message = "Already max level.";
+            this.state.messageTimerMs = 1500;
+          } else {
+            this.state.message = "Not enough gold.";
+            this.state.messageTimerMs = 1500;
+          }
+          return;
+        }
+      }
+      this.state.message = "tap@" + Math.round(c.x) + "," + Math.round(c.y) + " (no btn)";
+      this.state.messageTimerMs = 800;
       return;
     }
+    if (this.state.betweenWave) {
+      this.state.shopOpen = false;
+      this.state.message = "Starting wave " + (this.state.waveIndex + 1) + "...";
+      this.state.messageTimerMs = 1500;
+      startWaveFromBetween(this.state);
+      this.audio.play("wave");
+      return;
+    }
+    if (this.state.selectedPieceId !== null) {
+      const sel = this.state.pieces.find((p) => p.id === this.state.selectedPieceId);
+      if (sel) {
+        const bounds = pieceSellXBounds(sel);
+        if (c.x >= bounds.x && c.x <= bounds.x + bounds.w && c.y >= bounds.y && c.y <= bounds.y + bounds.h) {
+          const refund = sellPiece(this.state, sel.id);
+          this.state.selectedPieceId = null;
+          this.state.message = `Sold ${sel.role} for ${refund}g.`;
+          this.state.messageTimerMs = 1800;
+          this.audio.play("ring");
+          return;
+        }
+      }
+    }
+    if (this.state.phase === "victory") {
+      const pb = playAgainButtonBounds();
+      if (c.x >= pb.x && c.x <= pb.x + pb.w && c.y >= pb.y && c.y <= pb.y + pb.h) {
+        resetRound(this.state);
+        this.state.message = "New run. Place pieces, then start the wave.";
+        this.state.messageTimerMs = 2400;
+        return;
+      }
+    }
+    const existing = pieceAt(this.state, c.x, c.y);
+    if (existing) {
+      this.state.selectedPieceId = existing.id;
+      this.state.selectionTimerMs = 6000;
+      this.audio.play("ring");
+      return;
+    }
+    this.state.selectedPieceId = null;
     const role: Role = this.input.getDevPlace();
     if (this.state.phase !== "build") {
       this.state.message = "Wait for the next build phase.";

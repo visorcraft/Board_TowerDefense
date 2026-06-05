@@ -9,11 +9,11 @@ const WAVE_DEFS: Array<{
   composition: Array<{ kind: EnemyKind; weight: number }>;
   spacing: [number, number];
 }> = [
-  { size: 8, composition: [{ kind: "walker", weight: 1 }], spacing: [700, 1100] },
-  { size: 12, composition: [{ kind: "walker", weight: 1 }, { kind: "runner", weight: 0.4 }], spacing: [550, 950] },
-  { size: 18, composition: [{ kind: "walker", weight: 1 }, { kind: "runner", weight: 0.7 }, { kind: "tank", weight: 0.2 }], spacing: [450, 800] },
-  { size: 22, composition: [{ kind: "walker", weight: 0.6 }, { kind: "runner", weight: 1 }, { kind: "tank", weight: 0.5 }, { kind: "swarm", weight: 0.4 }], spacing: [380, 700] },
-  { size: 26, composition: [{ kind: "runner", weight: 1 }, { kind: "tank", weight: 0.7 }, { kind: "swarm", weight: 0.7 }], spacing: [320, 600] },
+  { size: 8, composition: [{ kind: "walker", weight: 1 }], spacing: [380, 580] },
+  { size: 12, composition: [{ kind: "walker", weight: 1 }, { kind: "runner", weight: 0.4 }], spacing: [300, 480] },
+  { size: 18, composition: [{ kind: "walker", weight: 1 }, { kind: "runner", weight: 0.7 }, { kind: "tank", weight: 0.2 }], spacing: [240, 400] },
+  { size: 22, composition: [{ kind: "walker", weight: 0.6 }, { kind: "runner", weight: 1 }, { kind: "tank", weight: 0.5 }, { kind: "swarm", weight: 0.4 }], spacing: [200, 360] },
+  { size: 26, composition: [{ kind: "runner", weight: 1 }, { kind: "tank", weight: 0.7 }, { kind: "swarm", weight: 0.7 }], spacing: [180, 320] },
   { size: 1, composition: [{ kind: "boss", weight: 1 }], spacing: [0, 0] },
 ];
 

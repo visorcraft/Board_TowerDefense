@@ -54,6 +54,7 @@ export function defaultState(): GameState {
     victories: 0,
     unlockedModes: ["single"],
     waveEnemiesRemaining: 0,
+    waveEnemiesTotal: 0,
     waveSpawnQueue: [],
     waveSpawnTimerMs: 0,
     totalWaves: 6,
@@ -65,6 +66,11 @@ export function defaultState(): GameState {
     laneColors: [0x4f8fff, 0xff7a4f, 0x7aff4f],
     message: "Build phase: place pieces, then start the wave.",
     messageTimerMs: 4000,
+    selectedPieceId: null,
+    selectionTimerMs: 0,
+    betweenWave: false,
+    shopOpen: false,
+    upgrades: { ringZap: 0, cannonRate: 0, stairSlow: 0, blockSize: 0 },
   };
 }
 

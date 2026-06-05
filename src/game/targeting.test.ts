@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { defaultState } from "./state.js";
 import { fireCannons, setCannonMode, selectTarget, tickEnemies, tickProjectiles, tickWaveSpawns, cannonStats, spawnPlaceParticles } from "./targeting.js";
-import { placePiece } from "./economy.js";
+import { placePiece, sellPiece } from "./economy.js";
 import { buildWaveSpawns } from "./waves.js";
 import { ensurePath, startWave, startNextRound, tick } from "./round.js";
 import { createRng } from "./rng.js";
@@ -134,6 +134,101 @@ describe("targeting", () => {
     });
     tickEnemies(s, 1000);
     expect(s.enemies[0].pos.x).toBe(160);
+  });
+
+  it("walking over a stair slows the enemy (not tanks)", () => {
+    const s = defaultState();
+    placePiece(s, { role: "stair", x: 300, y: 200, orientation: 0, mode: "single" })!;
+    s.enemies.push({
+      id: 1, kind: "walker", hp: 1, maxHp: 1, speed: 60, reward: 1, damage: 1,
+      slowTimerMs: 0, slowFactor: 1, pos: { x: 100, y: 200 },
+      path: [{ x: 100, y: 200 }, { x: 800, y: 200 }],
+      pathIndex: 0, lane: 0, size: 14, enteredAt: 0, pierceDamageLeft: 1,
+    });
+    for (let i = 0; i < 30; i++) tickEnemies(s, 100);
+    expect(s.enemies[0].pos.x).toBeLessThan(100 + 60 * 3);
+    expect(s.enemies[0].slowTimerMs).toBeGreaterThan(0);
+    expect(s.enemies[0].slowFactor).toBeLessThan(1);
+  });
+
+  it("tanks are immune to stair slow", () => {
+    const s = defaultState();
+    placePiece(s, { role: "stair", x: 300, y: 200, orientation: 0, mode: "single" })!;
+    s.enemies.push({
+      id: 1, kind: "tank", hp: 5, maxHp: 5, speed: 40, reward: 1, damage: 1,
+      slowTimerMs: 0, slowFactor: 1, pos: { x: 100, y: 200 },
+      path: [{ x: 100, y: 200 }, { x: 800, y: 200 }],
+      pathIndex: 0, lane: 0, size: 20, enteredAt: 0, pierceDamageLeft: 1,
+    });
+    for (let i = 0; i < 30; i++) tickEnemies(s, 100);
+    expect(s.enemies[0].slowTimerMs).toBe(0);
+    expect(s.enemies[0].slowFactor).toBe(1);
+  });
+});
+
+describe("wave speed scaling", () => {
+  it("wave 0 enemies spawn at base speed", () => {
+    const s = defaultState();
+    s.waveIndex = 0;
+    s.rng = createRng(1);
+    s.waveSpawnQueue = buildWaveSpawns(s, 0).slice(0, 1);
+    s.waveEnemiesRemaining = s.waveSpawnQueue.length;
+    s.waveEnemiesTotal = s.waveSpawnQueue.length;
+    s.phase = "wave";
+    const baseSpeed = s.waveSpawnQueue[0].kind === "walker" ? 60 : 0;
+    tickWaveSpawns(s, 16);
+    if (s.enemies.length > 0 && baseSpeed > 0) {
+      expect(s.enemies[0].speed).toBeCloseTo(baseSpeed * 1.0, 1);
+    }
+  });
+
+  it("wave 2 enemies spawn 1.4x base speed", () => {
+    const s = defaultState();
+    s.waveIndex = 2;
+    s.rng = createRng(2);
+    s.waveSpawnQueue = buildWaveSpawns(s, 2).slice(0, 1);
+    s.waveEnemiesRemaining = s.waveSpawnQueue.length;
+    s.waveEnemiesTotal = s.waveSpawnQueue.length;
+    s.phase = "wave";
+    const baseSpeed = 60;
+    tickWaveSpawns(s, 16);
+    if (s.enemies.length > 0) {
+      expect(s.enemies[0].speed).toBeCloseTo(baseSpeed * 1.4, 1);
+    }
+  });
+
+  it("startWave sets waveEnemiesTotal to the queue length", () => {
+    const s = defaultState();
+    s.waveIndex = 0;
+    s.rng = createRng(3);
+    s.phase = "build";
+    startWave(s);
+    expect(s.waveEnemiesTotal).toBe(s.waveEnemiesRemaining);
+    expect(s.waveEnemiesTotal).toBeGreaterThan(0);
+  });
+});
+
+describe("sellPiece refund", () => {
+  it("refunds half the cannon cost and removes it", () => {
+    const s = defaultState();
+    const p = placePiece(s, { role: "cannon", x: 200, y: 200, orientation: 0, mode: "single" })!;
+    const before = s.gold;
+    const refund = sellPiece(s, p.id);
+    expect(refund).toBe(12);
+    expect(s.gold).toBe(before + 12);
+    expect(s.pieces.find((x) => x.id === p.id)).toBeUndefined();
+  });
+
+  it("refunds half the block cost (4g)", () => {
+    const s = defaultState();
+    const p = placePiece(s, { role: "block", x: 200, y: 200, orientation: 0, mode: "single" })!;
+    expect(sellPiece(s, p.id)).toBe(4);
+  });
+
+  it("refunds half the stair cost (6g)", () => {
+    const s = defaultState();
+    const p = placePiece(s, { role: "stair", x: 200, y: 200, orientation: 0, mode: "single" })!;
+    expect(sellPiece(s, p.id)).toBe(6);
   });
 });
 
