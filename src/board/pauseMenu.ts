@@ -9,7 +9,7 @@ export interface PauseHooks {
   onVisitShop(): void;
   onVolumeChange(music: number, sfx: number): void;
   onResume(): void;
-  onQuit(): void;
+  onQuit(): void | Promise<void>;
   onDebug(msg: string): void;
 }
 

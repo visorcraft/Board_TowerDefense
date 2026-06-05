@@ -27,6 +27,9 @@ async function main(): Promise<void> {
     // ignore
   }
   await app.start();
+  window.addEventListener("beforeunload", () => {
+    app.stop();
+  });
   if (import.meta && (import.meta as { hot?: { accept: () => void } }).hot) {
     (import.meta as { hot: { accept: () => void } }).hot.accept();
   }

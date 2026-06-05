@@ -124,19 +124,13 @@ export class App {
       onResume: () => {
         this.state.paused = false;
       },
-      onQuit: () => {
+      onQuit: async () => {
         if (this.state.saveDirty) {
-          void this.save.save(this.state);
+          await this.save.save(this.state);
         }
         this.stop();
         if (Board.isOnDevice) {
-          setTimeout(() => {
-            try {
-              Board.application.quit();
-            } catch (e) {
-              this.debugMsg = "quit threw: " + String(e);
-            }
-          }, 100);
+          Board.application.quit();
         }
       },
       onNextWave: () => {
