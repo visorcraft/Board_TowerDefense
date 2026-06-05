@@ -89,11 +89,11 @@ export class App {
     });
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     cancelAnimationFrame(this.rafId);
     this.input.stop();
     this.pause.uninstall();
-    this.audio.destroy();
+    await this.audio.destroy();
   }
 
   private installPause(): void {
@@ -128,8 +128,9 @@ export class App {
         if (this.state.saveDirty) {
           await this.save.save(this.state);
         }
-        this.stop();
+        await this.stop();
         if (Board.isOnDevice) {
+          await new Promise(resolve => setTimeout(resolve, 200));
           Board.application.quit();
         }
       },

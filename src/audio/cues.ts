@@ -303,10 +303,14 @@ export class AudioBus {
     this.musicNodes = [];
   }
 
-  destroy(): void {
+  async destroy(): Promise<void> {
     this.stopMusic();
     if (this.ctx && this.ctx.state !== "closed") {
-      void this.ctx.close();
+      try {
+        await this.ctx.close();
+      } catch {
+        // ignored
+      }
     }
     this.ctx = null;
     this.master = null;

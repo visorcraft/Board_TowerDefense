@@ -68,11 +68,6 @@ export function selectTarget(piece: PlacedPiece, enemies: ReadonlyArray<Enemy>):
     const dy = e.pos.y - piece.y;
     const distSq = dx * dx + dy * dy;
     if (distSq > maxRangeSq) continue;
-    const angleTo = (Math.atan2(dy, dx) * 180) / Math.PI;
-    let diff = angleTo - piece.orientation;
-    while (diff > 180) diff -= 360;
-    while (diff < -180) diff += 360;
-    if (Math.abs(diff) > 50) continue;
     const pri = priority(e);
     if (best === null || pri > bestPri || (pri === bestPri && distSq < bestDistSq)) {
       best = e;
