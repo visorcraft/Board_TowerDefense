@@ -420,19 +420,22 @@ export function drawBetweenWaveOverlay(ctx: CanvasRenderingContext2D, state: Gam
   const cy = CANVAS_HEIGHT / 2;
   const pulse = (tickFrame % 60) < 30;
   drawText(ctx, "WAVE " + state.waveIndex + " CLEARED", cx, cy - 90, PALETTE.gold, 64, "center", "middle");
-  drawText(ctx, "Tap anywhere to start Wave " + (state.waveIndex + 1), cx, cy - 10, "#7aff4f", 36, "center", "middle");
+  drawText(ctx, "Tap NEXT WAVE below to start Wave " + (state.waveIndex + 1), cx, cy - 10, "#7aff4f", 36, "center", "middle");
   drawText(ctx, "Or open System Menu → Visit Shop / Next Wave", cx, cy + 50, PALETTE.textDim, 24, "center", "middle");
-  const bw = 500;
-  const bh = 90;
-  const btnX = cx - bw / 2;
-  const btnY = cy + 100;
+  const b = betweenWaveStartButtonBounds();
+  const bw = b.w;
+  const bh = b.h;
+  const btnX = b.x;
+  const btnY = b.y;
   fillRect(ctx, btnX, btnY, bw, bh, pulse ? "#0a1f0a" : "#051005");
   strokeRect(ctx, btnX, btnY, bw, bh, "#7aff4f", 5);
   drawText(ctx, "NEXT WAVE", cx, btnY + bh / 2, "#7aff4f", 44, "center", "middle");
 }
 
-export function betweenWaveTapAnywhere(): boolean {
-  return true;
+export function betweenWaveStartButtonBounds(): { x: number; y: number; w: number; h: number } {
+  const bw = 500;
+  const bh = 90;
+  return { x: CANVAS_WIDTH / 2 - bw / 2, y: CANVAS_HEIGHT / 2 + 100, w: bw, h: bh };
 }
 
 export function drawShopOverlay(ctx: CanvasRenderingContext2D, state: GameState): void {

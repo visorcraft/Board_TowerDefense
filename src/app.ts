@@ -3,7 +3,7 @@ import { tick, pieceAt, roleForPlacement, ensurePath, startWave, resetRound, sta
 import type { InputSource } from "./board/boardInput.js";
 import { type DevContact } from "./board/boardInput.js";
 import type { PieceMappingTable } from "./board/pieceMapping.js";
-import { drawBackground, drawEnemies, drawHud, drawParticles, drawPieces, drawPhaseOverlay, drawPieceSellX, drawPlayAgainButton, drawProjectiles, drawBetweenWaveOverlay, drawShopOverlay, pieceSellXBounds, playAgainButtonBounds, shopBuyButtonBounds, shopDoneButtonBounds, setupCanvas } from "./render/canvas.js";
+import { drawBackground, drawEnemies, drawHud, drawParticles, drawPieces, drawPhaseOverlay, drawPieceSellX, drawPlayAgainButton, drawProjectiles, drawBetweenWaveOverlay, drawShopOverlay, betweenWaveStartButtonBounds, pieceSellXBounds, playAgainButtonBounds, shopBuyButtonBounds, shopDoneButtonBounds, setupCanvas } from "./render/canvas.js";
 import { CANNON_MODES, type CannonMode, type GameState, type Role, type PieceUpgrades } from "./game/types.js";
 import { setCannonMode } from "./game/targeting.js";
 import { placePiece, sellPiece } from "./game/economy.js";
@@ -378,11 +378,17 @@ export class App {
       return;
     }
     if (this.state.betweenWave) {
-      this.state.shopOpen = false;
-      this.state.message = "Starting wave " + (this.state.waveIndex + 1) + "...";
-      this.state.messageTimerMs = 1500;
-      startWaveFromBetween(this.state);
-      this.audio.play("wave");
+      // Only the explicit NEXT WAVE button starts the wave — not "tap anywhere".
+      // A stray tap (e.g. the touch that bleeds through when the System Menu is
+      // dismissed after choosing Visit Shop) must not pre-empt the shop.
+      const sb = betweenWaveStartButtonBounds();
+      if (c.x >= sb.x && c.x <= sb.x + sb.w && c.y >= sb.y && c.y <= sb.y + sb.h) {
+        this.state.shopOpen = false;
+        this.state.message = "Starting wave " + (this.state.waveIndex + 1) + "...";
+        this.state.messageTimerMs = 1500;
+        startWaveFromBetween(this.state);
+        this.audio.play("wave");
+      }
       return;
     }
     if (this.state.selectedPieceId !== null) {
