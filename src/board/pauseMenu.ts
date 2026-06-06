@@ -136,7 +136,7 @@ export class PauseMenu {
           gameName: "Tower Defense",
           offerSaveOption: true,
           customButtons: [
-            { id: "restart", title: "Restart Round", icon: "circulararrow" },
+            { id: "restart", title: "Restart Game", icon: "circulararrow" },
             { id: "next_wave", title: "Next Wave", icon: "square" },
             { id: "visit_shop", title: "Visit Shop", icon: "square" },
             { id: "diagnostic", title: "Diagnostic Screen", icon: "square" },

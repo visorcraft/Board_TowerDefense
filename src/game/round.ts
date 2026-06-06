@@ -84,7 +84,7 @@ export function resetRound(state: GameState): void {
   state.betweenWave = false;
   state.shopOpen = false;
   state.upgrades = { ringZap: 0, cannonRate: 0, stairSlow: 0, blockSize: 0 };
-  state.message = "Fresh round. Place pieces, then start the wave.";
+  state.message = "New game. Place pieces, then start the wave.";
   state.messageTimerMs = 4000;
 }
 

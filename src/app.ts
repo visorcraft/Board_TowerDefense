@@ -3,7 +3,7 @@ import { tick, pieceAt, roleForPlacement, ensurePath, startWave, resetRound, sta
 import type { InputSource } from "./board/boardInput.js";
 import { type DevContact } from "./board/boardInput.js";
 import type { PieceMappingTable } from "./board/pieceMapping.js";
-import { drawBackground, drawEnemies, drawHud, drawParticles, drawPieces, drawPhaseOverlay, drawPieceSellX, drawPlayAgainButton, drawProjectiles, drawBetweenWaveOverlay, drawShopOverlay, betweenWaveStartButtonBounds, pieceSellXBounds, playAgainButtonBounds, shopBuyButtonBounds, shopDoneButtonBounds, setupCanvas } from "./render/canvas.js";
+import { drawBackground, drawEnemies, drawHud, drawParticles, drawPieces, drawPhaseOverlay, drawPieceSellX, drawPlayAgainButton, drawProjectiles, drawBetweenWaveOverlay, drawShopOverlay, betweenWaveStartButtonBounds, betweenWaveShopButtonBounds, pieceSellXBounds, playAgainButtonBounds, shopBuyButtonBounds, shopDoneButtonBounds, setupCanvas } from "./render/canvas.js";
 import { CANNON_MODES, type CannonMode, type GameState, type Role, type PieceUpgrades } from "./game/types.js";
 import { setCannonMode } from "./game/targeting.js";
 import { placePiece, sellPiece } from "./game/economy.js";
@@ -287,10 +287,12 @@ export class App {
       if (c.glyphId > 0) {
         this.onPieceBegan(c);
       } else if (trigger) {
-        // Any non-piece contact (glyphId 0) is a tap. The touch system often
-        // classifies a light/quick tap as "Blob" rather than "Finger"; filtering
-        // on type === "Finger" silently dropped those, so overlay buttons (shop,
-        // between-wave, victory) ignored taps on device.
+        // Any non-piece contact (glyphId 0) is a potential tap. The touch system
+        // classifies the same finger inconsistently as Finger / Blob / Glyph, so we
+        // can't filter by type here without dropping real button taps. Accept all;
+        // the one irreversible action that bezel/menu bleed-through must NOT trigger
+        // — starting the next wave — additionally requires a Finger/Blob contact in
+        // onFingerBegan (see the between-wave branch).
         this.onFingerBegan(c);
       }
       }
@@ -378,11 +380,19 @@ export class App {
       return;
     }
     if (this.state.betweenWave) {
-      // Only the explicit NEXT WAVE button starts the wave — not "tap anywhere".
-      // A stray tap (e.g. the touch that bleeds through when the System Menu is
-      // dismissed after choosing Visit Shop) must not pre-empt the shop.
-      const sb = betweenWaveStartButtonBounds();
-      if (c.x >= sb.x && c.x <= sb.x + sb.w && c.y >= sb.y && c.y <= sb.y + sb.h) {
+      // Two on-screen buttons (centered, away from the top-right bezel) drive the
+      // between-wave choice, so no System Menu is needed here — which avoids the
+      // menu-dismiss bleed-through that used to start the wave. Taps elsewhere do
+      // nothing. Accept any tap type (the touch system types fingers inconsistently).
+      const shopB = betweenWaveShopButtonBounds();
+      if (c.x >= shopB.x && c.x <= shopB.x + shopB.w && c.y >= shopB.y && c.y <= shopB.y + shopB.h) {
+        openShop(this.state);
+        this.state.message = this.state.shopOpen ? "Shop open — buy upgrades, then Done." : "Shop unavailable.";
+        this.state.messageTimerMs = 1500;
+        return;
+      }
+      const startB = betweenWaveStartButtonBounds();
+      if (c.x >= startB.x && c.x <= startB.x + startB.w && c.y >= startB.y && c.y <= startB.y + startB.h) {
         this.state.shopOpen = false;
         this.state.message = "Starting wave " + (this.state.waveIndex + 1) + "...";
         this.state.messageTimerMs = 1500;
