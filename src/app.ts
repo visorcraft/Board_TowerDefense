@@ -286,7 +286,11 @@ export class App {
       if (trigger) this.audio.resume();
       if (c.glyphId > 0) {
         this.onPieceBegan(c);
-      } else if (c.type === "Finger" && trigger) {
+      } else if (trigger) {
+        // Any non-piece contact (glyphId 0) is a tap. The touch system often
+        // classifies a light/quick tap as "Blob" rather than "Finger"; filtering
+        // on type === "Finger" silently dropped those, so overlay buttons (shop,
+        // between-wave, victory) ignored taps on device.
         this.onFingerBegan(c);
       }
       }
@@ -412,6 +416,10 @@ export class App {
       return;
     }
     this.state.selectedPieceId = null;
+    // On the real device, pieces are placed with physical Pieces; a finger tap on
+    // empty space should not spawn a dev piece (it would cost gold unexpectedly).
+    // The finger-place affordance is for the browser preview only.
+    if (Board.isOnDevice) return;
     const role: Role = this.input.getDevPlace();
     if (this.state.phase !== "build") {
       this.state.message = "Wait for the next build phase.";
