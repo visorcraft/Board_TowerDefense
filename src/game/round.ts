@@ -153,8 +153,13 @@ export function startWaveFromBetween(state: GameState): void {
   startWave(state);
 }
 
+/** The shop is available while placing pieces (build phase) or between waves — not mid-wave. */
+export function canOpenShop(state: GameState): boolean {
+  return state.betweenWave || state.phase === "build";
+}
+
 export function openShop(state: GameState): void {
-  if (state.betweenWave) state.shopOpen = true;
+  if (canOpenShop(state)) state.shopOpen = true;
 }
 
 export function closeShop(state: GameState): void {

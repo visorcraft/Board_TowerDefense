@@ -139,7 +139,14 @@ export class App {
         this.audio.play("wave");
       },
       onVisitShop: () => {
-        if (this.state.betweenWave) openShop(this.state);
+        openShop(this.state);
+        if (this.state.shopOpen) {
+          this.state.message = "Shop open — buy upgrades, then Done.";
+          this.state.messageTimerMs = 1500;
+        } else {
+          this.state.message = "Shop opens while building or between waves.";
+          this.state.messageTimerMs = 2000;
+        }
       },
       onDebug: (msg) => {
         this.debugMsg = msg;
@@ -166,7 +173,6 @@ export class App {
 
   private frame(ts: number): void {
     this.tickFrame = (this.tickFrame + 1) % 1000000;
-    if (this.tickFrame <= 3) console.log("frame " + this.tickFrame + " ts=" + ts);
     const dt = Math.min(64, ts - this.lastTs);
     this.lastTs = ts;
     if (!this.state.paused) {

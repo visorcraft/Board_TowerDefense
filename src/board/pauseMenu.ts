@@ -39,28 +39,74 @@ export function isTerminalPauseAction(rawAction: string): boolean {
   );
 }
 
+export interface PauseGateState {
+  /** Dedupe key of the last DISPATCHED action (the sticky poll re-reports it every 150ms). */
+  lastKey: string;
+  /** The terminal action present at launch — the host's sticky leftover from the previous session. */
+  staleTerminalKey: string | null;
+  /** True once the user has genuinely interacted with THIS session's pause menu. */
+  unlocked: boolean;
+}
+
+export function freshPauseGate(): PauseGateState {
+  return { lastKey: "", staleTerminalKey: null, unlocked: false };
+}
+
 /**
- * Decide whether a freshly observed pause result should be dispatched, updating
- * the dedupe key in `state`. Pure so it can be unit-tested without the host bridge.
+ * Decide whether a freshly observed pause result should be dispatched, mutating
+ * `state`. Pure so it can be unit-tested without the host bridge.
  *
- * - Dedupes the sticky 150ms poll (same action fires at most once).
- * - Suppresses terminal actions seen within `graceMs` of launch (stale leftovers
- *   from a previous session re-delivered by the host) while still recording the
- *   key, so the poll stops re-firing them. A genuine quit after any other action
- *   has a distinct key and dispatches normally.
+ * The host's `getPauseResult()` is sticky and survives a relaunch (only a reboot
+ * clears it), so on launch it re-delivers the previous session's quit. We must
+ * suppress that WITHOUT blocking a genuine later quit of the same variant — the
+ * two exit options are distinct strings ("save_and_quit" vs "quit"), so poisoning
+ * the dedupe key with the stale value would silently drop whichever variant the
+ * user last picked. Instead:
+ *
+ * - Terminal actions: ignored while they look like the stale leftover (seen in the
+ *   startup grace window, or equal to the leftover value) AND the user has not yet
+ *   interacted. The stale value is NEVER written to `lastKey`, so a genuine quit is
+ *   not deduped against it. The OTHER variant always has a distinct key and works.
+ * - Non-terminal actions (resume / restart / shop / audio): deduped against the
+ *   150ms poll, and dispatching one is proof of genuine interaction → `unlocked`.
  */
 export function decidePauseDispatch(
-  state: { lastKey: string },
+  state: PauseGateState,
   result: { action: string; customButtonId?: string },
   msSinceInstall: number,
   graceMs: number,
 ): { dispatch: boolean; reason: string } {
   const key = `${String(result.action ?? "")}|${String(result.customButtonId ?? "")}`;
+  const terminal = isTerminalPauseAction(result.action);
+  const withinGrace = msSinceInstall < graceMs;
+
+  // The first terminal seen at launch — before the user could have interacted —
+  // is the host's sticky leftover from the previous session.
+  if (terminal && state.staleTerminalKey === null && withinGrace && !state.unlocked) {
+    state.staleTerminalKey = key;
+  }
+  // The leftover value is pending continuously until the user picks something new,
+  // so we can only trust that it is GONE once the host's result moves off it. Any
+  // different value (a Resume/Restart/audio change, the other exit variant, or a
+  // null read handled by the caller) proves that — after which a same-variant quit
+  // is genuine. This never fires during gameplay, where the poll keeps returning
+  // the leftover unchanged.
+  if (state.staleTerminalKey !== null && key !== state.staleTerminalKey) {
+    state.unlocked = true;
+  }
+
+  if (terminal) {
+    if (key === state.lastKey) return { dispatch: false, reason: "dup" };
+    if (!state.unlocked && (withinGrace || key === state.staleTerminalKey)) {
+      return { dispatch: false, reason: withinGrace ? "startup-grace" : "stale-startup-quit" };
+    }
+    state.lastKey = key; // genuine quit: dedupe re-reads while the app tears down
+    return { dispatch: true, reason: "ok" };
+  }
+
   if (key === state.lastKey) return { dispatch: false, reason: "dup" };
   state.lastKey = key;
-  if (msSinceInstall < graceMs && isTerminalPauseAction(result.action)) {
-    return { dispatch: false, reason: "stale-startup-quit" };
-  }
+  state.unlocked = true;
   return { dispatch: true, reason: "ok" };
 }
 
@@ -74,13 +120,14 @@ export class PauseMenu {
   private reapplyTimer: number | null = null;
   private pollTimer: number | null = null;
   private pollCount = 0;
-  private lastPollKey = "";
+  private gate: PauseGateState = freshPauseGate();
   private installedAtMs = 0;
   private gameId = "";
 
   install(hooks: PauseHooks): void {
     this.hooks = hooks;
     this.installedAtMs = performance.now();
+    this.gate = freshPauseGate();
     if (!Board.isOnDevice) return;
     const apply = (): void => {
       try {
@@ -124,7 +171,7 @@ export class PauseMenu {
     });
     this.pollTimer = window.setInterval(() => {
       this.pollCount++;
-      if (this.pollCount % 10 === 0 && this.lastPollKey === "") {
+      if (this.pollCount % 10 === 0 && this.gate.lastKey === "") {
         this.hooks?.onDebug(`polling (n=${this.pollCount})`);
       }
       let result: BoardPauseResult | null = null;
@@ -134,7 +181,12 @@ export class PauseMenu {
         this.hooks?.onDebug("pollResult threw: " + String(e));
         return;
       }
-      if (!result) return;
+      if (!result) {
+        // A null read means the host no longer holds the leftover — genuine quits
+        // (even of the leftover's variant) are safe from here on.
+        if (this.gate.staleTerminalKey !== null) this.gate.unlocked = true;
+        return;
+      }
       this.handleResult(result, "poll");
     }, 150);
   }
@@ -146,11 +198,10 @@ export class PauseMenu {
    * is not re-fired on the other.
    */
   private handleResult(result: BoardPauseResult, source: "poll" | "push"): void {
-    const state = { lastKey: this.lastPollKey };
-    const decision = decidePauseDispatch(state, result, performance.now() - this.installedAtMs, STARTUP_QUIT_GRACE_MS);
-    this.lastPollKey = state.lastKey;
+    const ms = performance.now() - this.installedAtMs;
+    const decision = decidePauseDispatch(this.gate, result, ms, STARTUP_QUIT_GRACE_MS);
     if (!decision.dispatch) {
-      if (decision.reason === "stale-startup-quit") {
+      if (decision.reason === "stale-startup-quit" || decision.reason === "startup-grace") {
         this.hooks?.onDebug(`ignored stale ${source} quit: ${result.action}`);
       }
       return;

@@ -7,14 +7,6 @@ import { PauseMenu } from "./board/pauseMenu.js";
 import { AudioBus } from "./audio/cues.js";
 
 async function main(): Promise<void> {
-  try {
-    localStorage.clear();
-    sessionStorage.clear();
-    if ('caches' in window) {
-      const names = await caches.keys();
-      await Promise.all(names.map(n => caches.delete(n)));
-    }
-  } catch {}
   console.log("=== Tower Defense starting ===");
   try {
     const canvas = document.getElementById("screen") as HTMLCanvasElement | null;
