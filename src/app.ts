@@ -165,9 +165,10 @@ export class App {
   }
 
   private frame(ts: number): void {
+    this.tickFrame = (this.tickFrame + 1) % 1000000;
+    if (this.tickFrame <= 3) console.log("frame " + this.tickFrame + " ts=" + ts);
     const dt = Math.min(64, ts - this.lastTs);
     this.lastTs = ts;
-    this.tickFrame = (this.tickFrame + 1) % 1000000;
     if (!this.state.paused) {
       tick(this.state, dt);
     }
