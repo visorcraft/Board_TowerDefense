@@ -92,9 +92,13 @@ export function tick(state: GameState, dtMs: number): void {
   if (state.paused) return;
   if (state.phase === "build") {
     if (!state.betweenWave) {
-      state.phaseTimerMs = Math.max(0, state.phaseTimerMs - dtMs);
       tickEconomy(state, dtMs);
-      if (state.phaseTimerMs <= 0) startWave(state);
+      // Pause the build countdown (and its auto-start) while the shop is open, so
+      // the wave can't start underneath the Visit Shop overlay.
+      if (!state.shopOpen) {
+        state.phaseTimerMs = Math.max(0, state.phaseTimerMs - dtMs);
+        if (state.phaseTimerMs <= 0) startWave(state);
+      }
     }
   } else if (state.phase === "wave") {
     tickWaveSpawns(state, dtMs);
