@@ -451,7 +451,7 @@ export function drawShopOverlay(ctx: CanvasRenderingContext2D, state: GameState)
   ctx.fillStyle = rgba("#000", 0.75);
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   drawText(ctx, "UPGRADE SHOP", CANVAS_WIDTH / 2, 48, PALETTE.gold, 52, "center", "top");
-  drawText(ctx, Math.floor(state.gold) + "g available   (use System Menu to exit)", CANVAS_WIDTH / 2, 108, PALETTE.text, 22, "center", "top");
+  drawText(ctx, Math.floor(state.gold) + "g available   (tap ✕ DONE, top-left, to close)", CANVAS_WIDTH / 2, 108, PALETTE.text, 22, "center", "top");
   const cardW = 380;
   const cardH = 260;
   const gap = 40;
@@ -486,11 +486,10 @@ export function drawShopOverlay(ctx: CanvasRenderingContext2D, state: GameState)
       drawText(ctx, "MAX LEVEL", x + cardW / 2, y + 150, "#ffce4a", 32, "center", "top");
     }
   }
-  const doneH = 80;
-  const doneY = CANVAS_HEIGHT - doneH - 20;
-  fillRect(ctx, 0, doneY, CANVAS_WIDTH, doneH, "#1a2238");
-  strokeRect(ctx, 0, doneY, CANVAS_WIDTH, doneH, "#5fb3ff", 4);
-  drawText(ctx, "DONE — tap anywhere at bottom to close shop", CANVAS_WIDTH / 2, doneY + doneH / 2, PALETTE.text, 36, "center", "middle");
+  const done = shopDoneButtonBounds();
+  fillRect(ctx, done.x, done.y, done.w, done.h, "#1a2238");
+  strokeRect(ctx, done.x, done.y, done.w, done.h, "#5fb3ff", 4);
+  drawText(ctx, "✕ DONE", done.x + done.w / 2, done.y + done.h / 2, PALETTE.text, 36, "center", "middle");
 }
 
 export function shopBuyButtonBounds(key: keyof PieceUpgrades, state: GameState): { x: number; y: number; w: number; h: number } {
@@ -510,9 +509,9 @@ export function shopBuyButtonBounds(key: keyof PieceUpgrades, state: GameState):
 }
 
 export function shopDoneButtonBounds(): { x: number; y: number; w: number; h: number } {
-  const doneH = 80;
-  const doneY = CANVAS_HEIGHT - doneH - 20;
-  return { x: 0, y: doneY, w: CANVAS_WIDTH, h: doneH };
+  // Top-left, above the playfield — clear of the bottom-edge and top-right bezel
+  // noise that classifies as stray Glyph taps and used to close the shop.
+  return { x: 60, y: 36, w: 320, h: 92 };
 }
 
 function roleForUpgradeKey(key: keyof PieceUpgrades): string {
