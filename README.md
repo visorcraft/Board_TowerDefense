@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/Piece%20Set-Save%20the%20Bloogs-ff8c00" alt="Piece Set: Save the Bloogs" />
   <img src="https://img.shields.io/badge/tests-56%20passing-3fb950" alt="56 tests passing" />
   <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: alpha" />
+  <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License: GPL-3.0-only" />
 </p>
 
 ---
@@ -181,7 +182,7 @@ A few files and tables let you re-skin and re-map without diving into engine cod
 
 ## Contribute
 
-Patches, bug reports, and design feedback are welcome.
+Patches, bug reports, and design feedback are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full guide, and [`SECURITY.md`](SECURITY.md) for reporting security issues privately.
 
 - Branch from `master`, send a PR.
 - Before pushing, run `npm test` **and** `npx tsc --noEmit` — both must pass.
@@ -198,4 +199,8 @@ The README is the single source of truth for the project. Authoritative Board SD
 
 ## License
 
-© VisorCraft LLC. Private project — all rights reserved. Not licensed for redistribution.
+Licensed under the **GNU General Public License v3.0** (`GPL-3.0-only`) — see [`LICENSE`](LICENSE) for the full text.
+
+© 2026 VisorCraft LLC. This is free software: you are free to use, study, share, and modify it under the terms of the GPL. It is distributed in the hope that it will be useful, but **WITHOUT ANY WARRANTY**, to the extent permitted by law.
+
+The GPL covers the source code in this repository. Third-party components carry their own licenses and are **not** relicensed here — notably the Board Web SDK and the *Save the Bloogs* Piece Set model (`.tflite`), which is obtained out of band and is not distributed in this repo.
