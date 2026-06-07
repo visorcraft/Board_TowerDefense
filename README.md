@@ -42,7 +42,7 @@ It's built around three pillars:
 
 **What it covers today:**
 
-- **Four Piece roles** — Cannon (auto-targeting tower), Block (wall / live path-shaper), Stair (cross-lane redirector), and Ring (Shapeshifter — slide it onto a Cannon to switch fire mode for a few seconds).
+- **Four Piece roles** — Cannon, Block, Stair, and the Shapeshifter Ring (detailed under [Gameplay](#the-pieces)).
 - **Four Cannon modes** — single, multi, slow, and pierce.
 - **A six-wave round ending in a boss**, with deterministic, seeded spawns across five enemy types (walker, runner, tank, swarm, boss).
 - **Live 3-lane A\* pathing** that re-routes around Blocks the instant one is placed or lifted.
@@ -52,7 +52,47 @@ It's built around three pillars:
 - **Board pause-menu integration** (Restart, Next Wave, Visit Shop, Diagnostic, Mute) and a **touch diagnostic screen** for capturing Piece glyph IDs.
 - **56 Vitest unit tests** over the deterministic game logic; strict TypeScript, ESM-only.
 
-See [`DESIGN.md`](DESIGN.md) for the full design doc — game systems, enemy stats, economy, and what's intentionally out of scope.
+---
+
+## Gameplay
+
+### A round, start to finish
+
+A round is six escalating waves — roughly 8–10 minutes — ending in a boss:
+
+1. **Build.** Place and rotate Pieces while gold accrues. Open the shop to spend it.
+2. **Wave.** Enemies spawn from the edges and march toward your goal along up to three lanes.
+3. **Resolution.** Defeated enemies drop gold; any that reach the goal chip away at its health.
+4. **Repeat.** Clear the final boss to win — or lose if the goal's health hits zero.
+
+Everyone shares the board, the gold, and the goal. There are no turns and no per-player resources: any hand can place, move, rotate, or sell any Piece at any time.
+
+### The Pieces
+
+| Piece | Role | What it does |
+| --- | --- | --- |
+| **Cannon** | Attack tower | Auto-targets the nearest enemy in its arc. Rotate the Piece to aim. |
+| **Block** | Wall / path-shaper | A static obstacle enemies reroute around — drop one to reshape the lanes mid-wave. |
+| **Stair** | Lane redirector | Tagged with a lane color; an enemy that touches it re-enters at the next matching Stair. |
+| **Ring** | Shapeshifter | Slide it onto a Cannon to switch its fire mode (single / multi / slow / pierce) for a few seconds. |
+
+Pieces are identified by `glyphId`, mapped to roles through [`public/pieceset.json`](public/pieceset.json) — so hardware IDs can be re-mapped without touching code.
+
+### Enemies
+
+Five archetypes, with deterministic, seed-driven spawns so every run of a given wave is repeatable:
+
+- **Walker** — slow, fragile rank-and-file.
+- **Runner** — fast and fragile; punishes gaps in your coverage.
+- **Tank** — high health and immune to slows.
+- **Swarm** — a cluster of fast, fragile, low-value enemies.
+- **Boss** — the final wave: slow, heavily armored, and the whole table's problem.
+
+### Spend it wisely
+
+Gold accrues through the build phase and drops from defeated enemies. The **upgrade shop** — reachable during build or between waves — trades it for stronger ring zaps, faster cannons, stronger stair slows, and bigger blocks. Your highest wave, victories, and unlocked Cannon modes persist on the Board between sessions.
+
+> **Out of scope (for now):** networked play, accounts, leaderboards, in-app purchases, and Piece Sets other than Save the Bloogs.
 
 ---
 
@@ -152,8 +192,7 @@ Patches, bug reports, and design feedback are welcome.
 
 ## Documentation
 
-- [Design doc](DESIGN.md) — pitch, core loop, Piece semantics, game systems, win/lose, persistence, and scope.
-- Authoritative Board SDK references: [Web SDK API](https://docs.dev.board.fun/web/reference/api), [build & deploy](https://docs.dev.board.fun/web/getting-started/build-and-deploy), [board-connect](https://docs.dev.board.fun/tools/board-connect), and [Pieces & touch](https://docs.dev.board.fun/learn/pieces).
+The README is the single source of truth for the project. Authoritative Board SDK references live upstream: [Web SDK API](https://docs.dev.board.fun/web/reference/api), [build & deploy](https://docs.dev.board.fun/web/getting-started/build-and-deploy), [board-connect](https://docs.dev.board.fun/tools/board-connect), and [Pieces & touch](https://docs.dev.board.fun/learn/pieces).
 
 ---
 
