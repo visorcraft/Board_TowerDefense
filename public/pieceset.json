@@ -1,5 +1,5 @@
 {
-  "description": "Save the Bloogs mapping captured from the real Board (). 4 piece types: ring, cannon, stair, block.",
+  "description": "Save the Bloogs mapping captured from the real Board. 4 piece types: ring, cannon, stair, block.",
   "defaultLaneColors": [16744448, 16756398, 16752048],
   "entries": [
     { "glyphId": 2, "role": "cannon", "label": "Cannon", "defaultMode": "single" },
